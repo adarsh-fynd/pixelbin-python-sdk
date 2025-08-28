@@ -19,13 +19,13 @@ ______________________________________________________________________
 ```python
 from pixelbin import PixelbinClient, PixelbinConfig
 
-// Create a config with you API_TOKEN
+# Create a config with you API_TOKEN
 config = PixelbinConfig({
     "domain": "https://api.pixelbin.io",
     "apiSecret": "API_TOKEN",
 })
 
-// Create a pixelbin instance
+# Create a pixelbin instance
 pixelbin = PixelbinClient(config=config)
 ```
 
