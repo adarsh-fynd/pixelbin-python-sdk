@@ -29,6 +29,8 @@ config = PixelbinConfig({
 pixelbin = PixelbinClient(config=config)
 ```
 
+Note: You will need an API token to authenticate your requests. Follow the Pixelbin Create Token guide to generate one: [Create Token](https://www.pixelbin.io/docs/tokens/create-token/).
+
 ## Predictions API
 
 PixelBin's Prediction APIs offer a suite of smart, AI-powered image editing tools designed to streamline your media workflow. These APIs enable you to transform, organize, and enhance images seamlessly within your application or system.
@@ -49,12 +51,14 @@ Initiate a prediction job using the prediction model name (for example, `erase_b
 
 ```python
 from pixelbin import PixelbinClient, PixelbinConfig
+import asyncio
 
 pixelbin = PixelbinClient(config=PixelbinConfig({
     "domain": "https://api.pixelbin.io",
     "apiSecret": "API_TOKEN",
 }))
 
+# Sync:
 job = pixelbin.predictions.create(
     name="erase_bg",
     input={
@@ -67,8 +71,24 @@ job = pixelbin.predictions.create(
     },
     webhook="https://example.com/webhook",
 )
-
 # job["_id"] can be used to check status
+
+# Async:
+async def run():
+    job_async = await pixelbin.predictions.createAsync(
+        name="erase_bg",
+        input={
+            "image": open("/path/to/image.jpeg", "rb").read(),
+            "industry_type": "general",
+            "quality_type": "original",
+            "shadow": "false",
+            "refine": "true",
+        },
+        webhook="https://example.com/webhook",
+    )
+    print(job_async["_id"])
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ### get
@@ -80,9 +100,20 @@ Fetch the prediction by request ID (job.\_id).
 | `request_id` | `str` | yes | Prediction request ID returned by `create` (`job["_id"]`). |
 
 ```python
+# Sync:
 details = pixelbin.predictions.get(job["_id"])  # string only
 if details.get("status") == "SUCCESS":
     print(details.get("output"))
+
+# Async:
+import asyncio
+
+async def run():
+    details_async = await pixelbin.predictions.getAsync(job["_id"])
+    if details_async.get("status") == "SUCCESS":
+        print(details_async.get("output"))
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ### wait
@@ -90,15 +121,35 @@ if details.get("status") == "SUCCESS":
 Wait until the prediction completes.
 
 | Argument | Type | Required | Description |
-| ------------ | ----- | -------- | --------------------------------------------------------------------- |
+| ------------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `request_id` | `str` | yes | Prediction request ID to poll until status is `SUCCESS` or `FAILURE`. |
+| `options` | `dict` | no | Polling options: `maxAttempts` (int, default 150, range 1-150), `retryFactor` (float, default 1, range 1-3), `retryInterval` (seconds, float, default 4.0, range 1-60). |
 
 ```python
-result = pixelbin.predictions.wait(job["_id"])`
+# Sync:
+result = pixelbin.predictions.wait(job["_id"])  # string only
 
-# Result details
+result_quick = pixelbin.predictions.wait(job["_id"], {
+    "maxAttempts": 30,
+    "retryFactor": 1,
+    "retryInterval": 1.0,
+})
+
 print(result.get("status"))  # Prediction status
 print(result.get("output"))  # Prediction output
+
+# Async:
+import asyncio
+
+async def run():
+    result_async = await pixelbin.predictions.waitAsync(job["_id"], {
+        "maxAttempts": 30,
+        "retryFactor": 1,
+        "retryInterval": 1.0,
+    })
+    print(result_async.get("status"), result_async.get("output"))
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ### create_and_wait
@@ -110,12 +161,28 @@ Create a prediction and wait until it completes. Returns the final result.
 | `name` | `str` | yes | Prediction name in `plugin_operation` format, e.g. `erase_bg`. |
 | `input` | `dict` | yes | Input fields as per the model input schema. |
 | `webhook` | `str` | no | Optional webhook URL. |
+| `options` | `dict` | no | Same options as in `wait`. |
 
 ```python
+# Sync:
 result = pixelbin.predictions.create_and_wait(
     name="erase_bg",
     input={"image": open("/path/to/image.jpeg", "rb").read()},
+    options={"maxAttempts": 60, "retryFactor": 1, "retryInterval": 2.0},
 )
+
+# Async:
+import asyncio
+
+async def run():
+    result_async = await pixelbin.predictions.create_and_waitAsync(
+        name="erase_bg",
+        input={"image": open("/path/to/image.jpeg", "rb").read()},
+        options={"maxAttempts": 60, "retryFactor": 1, "retryInterval": 2.0},
+    )
+    print(result_async.get("status"))
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ### list
@@ -123,8 +190,18 @@ result = pixelbin.predictions.create_and_wait(
 Fetch the list of available prediction models.
 
 ```python
+# Sync:
 items = pixelbin.predictions.list()
-# [ { "name": "erase_bg", "displayName": "Erase Background", ... }, ... ]
+print(len(items) if isinstance(items, list) else 0)
+
+# Async:
+import asyncio
+
+async def run():
+    items_async = await pixelbin.predictions.listAsync()
+    print(len(items_async) if isinstance(items_async, list) else 0)
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ### get_schema
@@ -136,13 +213,25 @@ Fetch the input schema for a specific prediction model by its name.
 | `name` | `str` | yes | Prediction name, e.g. `erase_bg`. |
 
 ```python
+# Sync:
 schema = pixelbin.predictions.get_schema("erase_bg")
-# { "name": "erase_bg", "displayName": "Erase Background", "input": { ... } }
+print(schema.get("name") if isinstance(schema, dict) else None)
+
+# Async:
+import asyncio
+
+async def run():
+    schema_async = await pixelbin.predictions.get_schemaAsync("erase_bg")
+    print(schema_async.get("name") if isinstance(schema_async, dict) else None)
+
+asyncio.get_event_loop().run_until_complete(run())
 ```
 
 ## Examples
 
 ### 1. Implementation using `create`, `get` and `wait` method
+
+Sync version:
 
 ```python
 from pixelbin import PixelbinClient, PixelbinConfig
@@ -185,7 +274,53 @@ if __name__ == "__main__":
     generate_image()
 ```
 
+Async version:
+
+```python
+import asyncio
+from pixelbin import PixelbinClient, PixelbinConfig
+
+async def generate_image_async():
+    pixelbin = PixelbinClient(
+        config=PixelbinConfig({
+            "domain": "https://api.pixelbin.io",
+            "apiSecret": os.getenv("PIXELBIN_API_TOKEN") or "API_TOKEN",
+        })
+    )
+
+    try:
+        # 1) Create prediction (async)
+        job = await pixelbin.predictions.createAsync(
+            name="erase_bg",
+            input={
+                "image": "https://cdn.pixelbin.io/v2/dummy-cloudname/original/__playground/playground-default.jpeg",
+                "industry_type": "general",
+                "quality_type": "original",
+                "shadow": False,
+                "refine": True,
+            },
+            # webhook="https://example.com/webhook",  # optional
+        )
+        print("Created:", job.get("_id"), job.get("status"))
+
+        # 2) get job details (async)
+        details = await pixelbin.predictions.getAsync(job["_id"])  # string only
+        print("Details:", details.get("status"))
+
+        # 3) Wait for completion (async)
+        result = await pixelbin.predictions.waitAsync(job["_id"])  # string only
+        print("Final:", result.get("status"), result.get("output"))
+    except Exception as err:
+        print("Error:", err)
+
+if __name__ == "__main__":
+    import os
+    asyncio.get_event_loop().run_until_complete(generate_image_async())
+```
+
 ### 2. Implementation with `create_and_wait` method
+
+Sync version:
 
 ```python
 from pixelbin import PixelbinClient, PixelbinConfig
@@ -217,6 +352,41 @@ def generate_image():
 if __name__ == "__main__":
     import os
     generate_image()
+```
+
+Async version:
+
+```python
+import asyncio
+from pixelbin import PixelbinClient, PixelbinConfig
+
+async def generate_image_async():
+    pixelbin = PixelbinClient(
+        config=PixelbinConfig({
+            "domain": "https://api.pixelbin.io",
+            "apiSecret": os.getenv("PIXELBIN_API_TOKEN") or "API_TOKEN",
+        })
+    )
+
+    try:
+        result = await pixelbin.predictions.create_and_waitAsync(
+            name="erase_bg",
+            input={
+                "image": "https://cdn.pixelbin.io/v2/dummy-cloudname/original/__playground/playground-default.jpeg",
+                "industry_type": "general",
+                "quality_type": "original",
+                "shadow": False,
+                "refine": True,
+            },
+            # webhook="https://example.com/webhook",  # optional
+        )
+        print(result)  # { status, output, ... }
+    except Exception as error:
+        print("Error:", error)
+
+if __name__ == "__main__":
+    import os
+    asyncio.get_event_loop().run_until_complete(generate_image_async())
 ```
 
 ## Uploader

@@ -164,13 +164,35 @@ class Predictions:
     def get(self, request_id: str) -> Dict[str, Any]:
         return asyncio.get_event_loop().run_until_complete(self.getAsync(request_id))
 
-    async def waitAsync(self, request_id: str) -> Dict[str, Any]:
+    async def waitAsync(
+        self, request_id: str, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         if not request_id:
             raise PixelbinIllegalArgumentError("requestId is required")
-        DEFAULT_MIN_TIMEOUT = 4.0
+        DEFAULT_MIN_TIMEOUT = 4.0  # seconds
         DEFAULT_RETRIES = 150
-        interval = DEFAULT_MIN_TIMEOUT
-        attempts = DEFAULT_RETRIES
+        DEFAULT_FACTOR = 1.0
+        opts = options or {}
+        # Parse and clamp options
+        raw_interval = (
+            float(opts.get("retryInterval"))
+            if isinstance(opts.get("retryInterval"), (int, float))
+            else DEFAULT_MIN_TIMEOUT
+        )
+        raw_attempts = (
+            int(opts.get("maxAttempts"))
+            if isinstance(opts.get("maxAttempts"), int)
+            else DEFAULT_RETRIES
+        )
+        raw_factor = (
+            float(opts.get("retryFactor"))
+            if isinstance(opts.get("retryFactor"), (int, float))
+            else DEFAULT_FACTOR
+        )
+
+        attempts = max(1, min(150, int(raw_attempts)))
+        factor = max(1.0, min(3.0, raw_factor))
+        interval = max(1.0, min(60.0, float(raw_interval)))
 
         last_status: Dict[str, Any] = {}
         for _ in range(attempts):
@@ -179,28 +201,40 @@ class Predictions:
             if s and s.get("status") in ("SUCCESS", "FAILURE"):
                 return s
             await asyncio.sleep(interval)
+            try:
+                interval = interval * factor
+            except Exception:
+                pass
         return last_status
 
-    def wait(self, request_id: str) -> Dict[str, Any]:
-        return asyncio.get_event_loop().run_until_complete(self.waitAsync(request_id))
+    def wait(
+        self, request_id: str, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        return asyncio.get_event_loop().run_until_complete(
+            self.waitAsync(request_id, options)
+        )
 
     async def create_and_waitAsync(
         self,
         name: str,
         input: Dict[str, Any] = None,
         webhook: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         job = await self.createAsync(name=name, input=input or {}, webhook=webhook)
-        return await self.waitAsync(job["_id"])
+        return await self.waitAsync(job["_id"], options)
 
     def create_and_wait(
         self,
         name: str,
         input: Dict[str, Any] = None,
         webhook: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         return asyncio.get_event_loop().run_until_complete(
-            self.create_and_waitAsync(name=name, input=input or {}, webhook=webhook)
+            self.create_and_waitAsync(
+                name=name, input=input or {}, webhook=webhook, options=options
+            )
         )
 
     async def listAsync(self) -> List[Dict[str, Any]]:

@@ -60,7 +60,9 @@ def main():
         print("get by id:", details.get("status"))
 
         print("\n=== wait ===")
-        final_status = client.predictions.wait(job["_id"])
+        final_status = client.predictions.wait(
+            job["_id"], {"maxAttempts": 30, "retryFactor": 1, "retryInterval": 1.0}
+        )
         print("wait ->", final_status.get("status"))
 
         print("\n=== outputs ===")
@@ -77,6 +79,7 @@ def main():
                 "refine": os.getenv("PREDICT_REFINE") or "true",
             },
             webhook=webhook,
+            options={"maxAttempts": 60, "retryFactor": 1, "retryInterval": 2.0},
         )
         print("create_and_wait ->", final_result.get("status"))
 

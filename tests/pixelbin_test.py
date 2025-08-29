@@ -1910,6 +1910,31 @@ class TestPixelBin(unittest.TestCase):
             status = pixelbin.predictions.wait("rid")
             self.assertEqual(status["status"], "SUCCESS")
 
+    def test_predictions_wait_with_options(self):
+        with mock.patch.object(
+            AiohttpHelper, "_AiohttpHelper__make_request"
+        ) as mock_request:
+            responses = [
+                {
+                    "status_code": 200,
+                    "content": ujson.dumps(
+                        {"_id": "rid", "status": "ACCEPTED"}
+                    ).encode(),
+                },
+                {
+                    "status_code": 200,
+                    "content": ujson.dumps(
+                        {"_id": "rid", "status": "SUCCESS", "output": "ok"}
+                    ).encode(),
+                },
+            ]
+            mock_request.side_effect = responses
+            pixelbin = self.pixelbinClient
+            status = pixelbin.predictions.wait(
+                "rid", {"maxAttempts": 999, "retryFactor": 10, "retryInterval": 0.0001}
+            )
+            self.assertEqual(status["status"], "SUCCESS")
+
     def test_predictions_list(self):
         with mock.patch.object(
             AiohttpHelper, "_AiohttpHelper__make_request"
